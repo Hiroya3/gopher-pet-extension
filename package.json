@@ -16,10 +16,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "gopher-pet.helloWorld",
-        "title": "Hello World"
-      },
-      {
         "command": "gopher-pet.showGopherPet",
         "title": "Show Gopher Pet"
       }

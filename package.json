@@ -2,6 +2,7 @@
   "name": "gopher-pet",
   "displayName": "gopher-pet",
   "description": "A Gopher pet that walks and runs inside VS/Cursor Code",
+  "license": "MIT",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.105.0"

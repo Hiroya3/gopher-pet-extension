@@ -3,6 +3,7 @@
   "displayName": "gopher-pet",
   "description": "A Gopher pet that walks and runs inside VS/Cursor Code",
   "license": "MIT",
+  "repository": "https://github.com/Hiroya3/gopher-pet-extension",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.105.0"

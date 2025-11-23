@@ -36,7 +36,7 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
             </head>
     
             <body>
-                <img id="gopher" src="${imageUri}" alt="Gopher Pet">
+                <img id="gopher" class="run" src="${imageUri}" alt="Gopher Pet">
             </body>
     
             <style>
@@ -58,6 +58,17 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                 #gopher {
                     width: 60px;
                     z-index: 2;
+                }
+
+                @keyframes run-right {
+                    /* Start from completely off-screen to the left (100% of viewport width to the left) */
+                    0% { transform: translateX(-100vw); }
+                    /* End at the right edge: subtract gopher width (60px) so the right edge of gopher aligns with viewport right edge */
+                    100% { transform: translateX(calc(100vw - 60px)); }
+                }
+
+                .run {
+                    animation: run-right 3s linear infinite;
                 }
             </style>
     

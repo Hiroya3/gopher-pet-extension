@@ -5,23 +5,38 @@ import * as vscode from 'vscode';
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+
+	let currentPanel: vscode.WebviewPanel | undefined = undefined;
+
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
 	const showGopherPet = vscode.commands.registerCommand(
 		'gopher-pet.showGopherPet', 
 		() => {
-			const panel = vscode.window.createWebviewPanel(
-				'gopherView',
-				'Gopher Pet',
-				vscode.ViewColumn.Two,
-				{
-					enableScripts: true,
-					// localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
-				}
-			)
 
-			panel.webview.html = getWebviewContent(panel.webview,context);
+			// the column num (one: left, two: right....) in which user shows the editor
+			const columnToShowIn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+
+			if (currentPanel){
+				currentPanel.reveal(columnToShowIn);
+			} else {
+				currentPanel = vscode.window.createWebviewPanel(
+					'gopherView',
+					'Gopher Pet',
+					columnToShowIn || vscode.ViewColumn.One,
+					{
+						enableScripts: true,
+						// localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
+					}
+				);
+				currentPanel.webview.html = getWebviewContent(currentPanel.webview,context);
+
+				// dispose the panel when the user closes it
+				currentPanel.onDidDispose(() => {
+					currentPanel = undefined;
+				}, null, context.subscriptions);
+			}
 		}
 	);
 

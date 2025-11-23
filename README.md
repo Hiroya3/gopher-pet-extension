@@ -69,3 +69,10 @@ You can author your README using Visual Studio Code. Here are some useful editor
 * [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
 **Enjoy!**
+
+## Credits
+
+The Go gopher was designed by Renee French.
+
+It is licensed under the Creative Commons Attribution 4.0 License.
+<http://creativecommons.org/licenses/by/4.0/>

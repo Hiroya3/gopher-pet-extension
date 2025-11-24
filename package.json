@@ -22,13 +22,7 @@
           "name": "Gopher Pet"
         }
       ]
-    },
-    "commands": [
-      {
-        "command": "gopher-pet.showGopherPet",
-        "title": "Show Gopher Pet"
-      }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

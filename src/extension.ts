@@ -12,7 +12,15 @@ export function activate(context: vscode.ExtensionContext) {
 			GopherViewProvider.viewType,
 			provider,
 		)
-	)
+	);
+
+	// Register the start game command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gopher-pet.startGame', () => {
+			provider.startGame();
+			vscode.window.showInformationMessage('Gopher game started! Press Space to jump!');
+		})
+	);
 }
 
 // This method is called when your extension is deactivated

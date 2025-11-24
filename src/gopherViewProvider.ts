@@ -68,7 +68,7 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                 }
 
                 .run {
-                    animation: run-right 3s linear infinite;
+                    animation: run-right 10s linear infinite;
                 }
             </style>
     

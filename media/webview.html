@@ -15,6 +15,7 @@
         <img id="gopher" class="run" src="{{gopherUri}}" alt="Gopher Pet">
         <div id="stone-container"></div>
         <div id="score-display">Score: 0</div>
+        <div id="countdown" class="hidden"></div>
         <div id="game-over" class="hidden">
             <div>Game Over!</div>
             <div id="final-score"></div>
@@ -196,6 +197,26 @@
         font-size: 14px;
         opacity: 0.7;
     }
+
+    #countdown {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-family: sans-serif;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        text-shadow: 2px 2px 4px black;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 10px;
+    }
+
+    #countdown.hidden {
+        display: none;
+    }
 </style>
 
 <script>
@@ -206,6 +227,7 @@
     const scoreDisplay = document.getElementById('score-display');
     const gameOverDisplay = document.getElementById('game-over');
     const finalScoreDisplay = document.getElementById('final-score');
+    const countdownDisplay = document.getElementById('countdown');
     const stoneImageSrc = '{{stoneUri}}';
     const gopherRunningSrc = '{{gopherUri}}';
     const gopherSpinningSrc = '{{spinningUri}}';
@@ -213,6 +235,8 @@
     let gameMode = false;
     let isJumping = false;
     let gameRunning = false;
+    let isCountingDown = false;
+    let waitingForStart = false;
     let score = 0;
     let stoneInterval = null;
     let collisionCheckInterval = null;
@@ -227,7 +251,7 @@
 
     function startGame() {
         gameMode = true;
-        gameRunning = true;
+        waitingForStart = true;
         score = 0;
         updateScore();
 
@@ -241,6 +265,34 @@
         // Clear existing stones
         stones.forEach(stone => stone.element.remove());
         stones = [];
+
+        // Show prompt to press space
+        countdownDisplay.textContent = 'Press Space to Start';
+        countdownDisplay.classList.remove('hidden');
+    }
+
+    function showCountdown() {
+        isCountingDown = true;
+        countdownDisplay.classList.remove('hidden');
+
+        let count = 3;
+        countdownDisplay.textContent = count;
+
+        const countdownInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownDisplay.textContent = count;
+            } else {
+                clearInterval(countdownInterval);
+                countdownDisplay.classList.add('hidden');
+                isCountingDown = false;
+                beginGameplay();
+            }
+        }, 1000);
+    }
+
+    function beginGameplay() {
+        gameRunning = true;
 
         // Start spawning stones
         spawnStone();
@@ -313,9 +365,12 @@
         // Hide game UI
         scoreDisplay.classList.remove('visible');
         gameOverDisplay.classList.add('hidden');
+        countdownDisplay.classList.add('hidden');
 
         // Reset state
         isJumping = false;
+        isCountingDown = false;
+        waitingForStart = false;
         score = 0;
     }
 
@@ -378,8 +433,17 @@
         } else if (event.code === 'Space') {
             event.preventDefault();
 
-            if (gameMode && !gameRunning) {
-                // Restart game
+            // Block input during countdown
+            if (isCountingDown) {
+                return;
+            }
+
+            if (waitingForStart) {
+                // Start countdown when waiting
+                waitingForStart = false;
+                showCountdown();
+            } else if (gameMode && !gameRunning) {
+                // Restart game (go back to waiting state)
                 startGame();
             } else if (gameMode && !isJumping) {
                 jump();

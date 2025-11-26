@@ -18,7 +18,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('gopher-pet.startGame', () => {
 			provider.startGame();
-			vscode.window.showInformationMessage('Gopher game started! Press Space to jump!');
 		})
 	);
 }

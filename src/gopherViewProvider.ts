@@ -20,8 +20,10 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
         };
 
         const gopherUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, 'media', 'gopher_running.GIF'));
+        const gopherSpinningUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, 'media', 'gopher_spinning.GIF'));
         const backgroundUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, 'media', 'background_glass.png'));
-        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview, gopherUri, backgroundUri);
+        const stoneUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, 'media', 'stone.png'));
+        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview, gopherUri, gopherSpinningUri, backgroundUri, stoneUri);
 
 		// Clean up when the webview is disposed
 		webviewView.onDidDispose(() => {
@@ -36,7 +38,7 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-    private getHtmlForWebview(webview: vscode.Webview, imageUri: vscode.Uri, backgroundUri: vscode.Uri): string {
+    private getHtmlForWebview(webview: vscode.Webview, imageUri: vscode.Uri, spinningUri: vscode.Uri, backgroundUri: vscode.Uri, stoneUri: vscode.Uri): string {
         return `
             <!DOCTYPE html>
             <html lang="en">
@@ -51,7 +53,16 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
             </head>
 
             <body>
-                <img id="gopher" class="run" src="${imageUri}" alt="Gopher Pet">
+                <div id="game-container">
+                    <img id="gopher" class="run" src="${imageUri}" alt="Gopher Pet">
+                    <div id="stone-container"></div>
+                    <div id="score-display">Score: 0</div>
+                    <div id="game-over" class="hidden">
+                        <div>Game Over!</div>
+                        <div id="final-score"></div>
+                        <div>Press Space to restart</div>
+                    </div>
+                </div>
             </body>
 
             <style>
@@ -70,6 +81,12 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                     background-repeat: no-repeat;
                 }
 
+                #game-container {
+                    position: relative;
+                    width: 100%;
+                    height: 100%;
+                }
+
                 #gopher {
                     width: 60px;
                     z-index: 2;
@@ -78,10 +95,25 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                     transition: bottom 0.3s ease-out;
                 }
 
+                .stone {
+                    width: 40px;
+                    height: 40px;
+                    position: absolute;
+                    bottom: 0;
+                    z-index: 1;
+                }
+
+                @keyframes move-left {
+                    0% { right: -40px; }
+                    100% { right: calc(100% + 40px); }
+                }
+
+                .stone-moving {
+                    animation: move-left 2s linear forwards;
+                }
+
                 @keyframes run-right {
-                    /* Start from completely off-screen to the left (100% of viewport width to the left) */
                     0% { transform: translateX(-100vw); }
-                    /* End at the right edge: subtract gopher width (60px) so the right edge of gopher aligns with viewport right edge */
                     100% { transform: translateX(calc(100vw - 60px)); }
                 }
 
@@ -91,22 +123,136 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
 
                 .game-mode {
                     animation: none !important;
-                    left: 50% !important;
-                    transform: translateX(-50%) !important;
+                    left: 30px !important;
+                    transform: none !important;
                 }
 
                 .jumping {
-                    bottom: 150px !important;
+                    bottom: 100px !important;
+                }
+
+                @keyframes hit-spin {
+                    0% {
+                        transform: rotate(0deg) translateY(0);
+                        opacity: 1;
+                    }
+                    20% {
+                        transform: rotate(360deg) translateY(-50px);
+                    }
+                    40% {
+                        transform: rotate(720deg) translateY(-80px);
+                    }
+                    60% {
+                        transform: rotate(1080deg) translateY(-60px);
+                    }
+                    80% {
+                        transform: rotate(1440deg) translateY(-20px);
+                    }
+                    100% {
+                        transform: rotate(1800deg) translateY(0);
+                        opacity: 1;
+                    }
+                }
+
+                .hit {
+                    animation: hit-spin 0.8s ease-out forwards !important;
+                }
+
+                @keyframes screen-shake {
+                    0%, 100% { transform: translateX(0); }
+                    10% { transform: translateX(-10px); }
+                    20% { transform: translateX(10px); }
+                    30% { transform: translateX(-8px); }
+                    40% { transform: translateX(8px); }
+                    50% { transform: translateX(-5px); }
+                    60% { transform: translateX(5px); }
+                    70% { transform: translateX(-3px); }
+                    80% { transform: translateX(3px); }
+                    90% { transform: translateX(-1px); }
+                }
+
+                .shake {
+                    animation: screen-shake 0.4s ease-out;
+                }
+
+                @keyframes impact-flash {
+                    0% { opacity: 0; transform: scale(0.5); }
+                    50% { opacity: 1; transform: scale(1.5); }
+                    100% { opacity: 0; transform: scale(2); }
+                }
+
+                .impact {
+                    position: absolute;
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 50%;
+                    background: radial-gradient(circle, rgba(255,255,0,0.8) 0%, rgba(255,100,0,0.4) 50%, transparent 70%);
+                    pointer-events: none;
+                    animation: impact-flash 0.3s ease-out forwards;
+                    z-index: 10;
+                }
+
+                #score-display {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    color: white;
+                    font-family: sans-serif;
+                    font-size: 16px;
+                    font-weight: bold;
+                    text-shadow: 1px 1px 2px black;
+                    display: none;
+                }
+
+                #score-display.visible {
+                    display: block;
+                }
+
+                #game-over {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    color: white;
+                    font-family: sans-serif;
+                    font-size: 18px;
+                    font-weight: bold;
+                    text-align: center;
+                    text-shadow: 2px 2px 4px black;
+                    background: rgba(0, 0, 0, 0.7);
+                    padding: 20px;
+                    border-radius: 10px;
+                }
+
+                #game-over.hidden {
+                    display: none;
+                }
+
+                #final-score {
+                    margin: 10px 0;
                 }
             </style>
 
             <script>
                 const vscode = acquireVsCodeApi();
                 const gopher = document.getElementById('gopher');
+                const gameContainer = document.getElementById('game-container');
+                const stoneContainer = document.getElementById('stone-container');
+                const scoreDisplay = document.getElementById('score-display');
+                const gameOverDisplay = document.getElementById('game-over');
+                const finalScoreDisplay = document.getElementById('final-score');
+                const stoneImageSrc = '${stoneUri}';
+                const gopherRunningSrc = '${imageUri}';
+                const gopherSpinningSrc = '${spinningUri}';
+
                 let gameMode = false;
                 let isJumping = false;
+                let gameRunning = false;
+                let score = 0;
+                let stoneInterval = null;
+                let collisionCheckInterval = null;
+                let stones = [];
 
-                // Listen for messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
                     if (message.type === 'startGame') {
@@ -116,15 +262,128 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
 
                 function startGame() {
                     gameMode = true;
-                    gopher.classList.remove('run');
+                    gameRunning = true;
+                    score = 0;
+                    updateScore();
+
+                    gopher.src = gopherRunningSrc;
+                    gopher.classList.remove('run', 'hit');
                     gopher.classList.add('game-mode');
+                    gameContainer.classList.remove('shake');
+                    scoreDisplay.classList.add('visible');
+                    gameOverDisplay.classList.add('hidden');
+
+                    // Clear existing stones
+                    stones.forEach(stone => stone.element.remove());
+                    stones = [];
+
+                    // Start spawning stones
+                    spawnStone();
+                    stoneInterval = setInterval(spawnStone, 1500 + Math.random() * 1000);
+
+                    // Start collision detection
+                    collisionCheckInterval = setInterval(checkCollision, 50);
                 }
 
-                // Listen for space key press
+                function stopGame() {
+                    gameRunning = false;
+                    if (stoneInterval) {
+                        clearInterval(stoneInterval);
+                        stoneInterval = null;
+                    }
+                    if (collisionCheckInterval) {
+                        clearInterval(collisionCheckInterval);
+                        collisionCheckInterval = null;
+                    }
+
+                    // Switch to spinning gopher on collision
+                    gopher.src = gopherSpinningSrc;
+
+                    // Add impact effects
+                    gopher.classList.add('hit');
+                    gameContainer.classList.add('shake');
+
+                    // Create impact flash effect at gopher position
+                    const gopherRect = gopher.getBoundingClientRect();
+                    const containerRect = gameContainer.getBoundingClientRect();
+                    const impact = document.createElement('div');
+                    impact.className = 'impact';
+                    impact.style.left = (gopherRect.left - containerRect.left + gopherRect.width / 2 - 30) + 'px';
+                    impact.style.bottom = '20px';
+                    gameContainer.appendChild(impact);
+
+                    // Remove impact element after animation
+                    setTimeout(() => impact.remove(), 300);
+
+                    // Show game over after spin animation
+                    setTimeout(() => {
+                        finalScoreDisplay.textContent = 'Score: ' + score;
+                        gameOverDisplay.classList.remove('hidden');
+                    }, 800);
+                }
+
+                function spawnStone() {
+                    if (!gameRunning) return;
+
+                    const stone = document.createElement('img');
+                    stone.src = stoneImageSrc;
+                    stone.className = 'stone stone-moving';
+                    stoneContainer.appendChild(stone);
+
+                    const stoneObj = {
+                        element: stone,
+                        passed: false
+                    };
+                    stones.push(stoneObj);
+
+                    // Remove stone after animation completes
+                    stone.addEventListener('animationend', () => {
+                        if (!stoneObj.passed && gameRunning) {
+                            score++;
+                            updateScore();
+                            stoneObj.passed = true;
+                        }
+                        stone.remove();
+                        stones = stones.filter(s => s !== stoneObj);
+                    });
+                }
+
+                function updateScore() {
+                    scoreDisplay.textContent = 'Score: ' + score;
+                }
+
+                function checkCollision() {
+                    if (!gameRunning) return;
+
+                    const gopherRect = gopher.getBoundingClientRect();
+
+                    for (const stoneObj of stones) {
+                        const stoneRect = stoneObj.element.getBoundingClientRect();
+
+                        // Check for collision (with some padding for fairness)
+                        const padding = 10;
+                        if (
+                            gopherRect.left + padding < stoneRect.right - padding &&
+                            gopherRect.right - padding > stoneRect.left + padding &&
+                            gopherRect.bottom - padding > stoneRect.top + padding &&
+                            gopherRect.top + padding < stoneRect.bottom - padding
+                        ) {
+                            stopGame();
+                            return;
+                        }
+                    }
+                }
+
                 document.addEventListener('keydown', (event) => {
-                    if (gameMode && event.code === 'Space' && !isJumping) {
+                    if (event.code === 'Space') {
                         event.preventDefault();
-                        jump();
+
+                        if (gameMode && !gameRunning) {
+                            // Restart game
+                            startGame();
+                        } else if (gameMode && !isJumping) {
+                            jump();
+                        }
                     }
                 });
 
@@ -134,14 +393,12 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                     isJumping = true;
                     gopher.classList.add('jumping');
 
-                    // Remove jumping class after animation completes
                     setTimeout(() => {
                         gopher.classList.remove('jumping');
                         isJumping = false;
-                    }, 600); // Match with transition duration
+                    }, 500);
                 }
 
-                // Focus the webview to receive keyboard events
                 window.focus();
             </script>
 

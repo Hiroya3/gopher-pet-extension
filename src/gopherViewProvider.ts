@@ -61,6 +61,7 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                         <div>Game Over!</div>
                         <div id="final-score"></div>
                         <div>Press Space to restart</div>
+                        <div class="exit-hint">Press Esc to exit</div>
                     </div>
                 </div>
             </body>
@@ -231,6 +232,12 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                 #final-score {
                     margin: 10px 0;
                 }
+
+                .exit-hint {
+                    margin-top: 10px;
+                    font-size: 14px;
+                    opacity: 0.7;
+                }
             </style>
 
             <script>
@@ -322,6 +329,38 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                     }, 800);
                 }
 
+                function exitGame() {
+                    // Stop game intervals
+                    gameRunning = false;
+                    gameMode = false;
+                    if (stoneInterval) {
+                        clearInterval(stoneInterval);
+                        stoneInterval = null;
+                    }
+                    if (collisionCheckInterval) {
+                        clearInterval(collisionCheckInterval);
+                        collisionCheckInterval = null;
+                    }
+
+                    // Clear all stones
+                    stones.forEach(stone => stone.element.remove());
+                    stones = [];
+
+                    // Reset gopher to normal running mode
+                    gopher.src = gopherRunningSrc;
+                    gopher.classList.remove('game-mode', 'hit', 'jumping');
+                    gopher.classList.add('run');
+                    gameContainer.classList.remove('shake');
+
+                    // Hide game UI
+                    scoreDisplay.classList.remove('visible');
+                    gameOverDisplay.classList.add('hidden');
+
+                    // Reset state
+                    isJumping = false;
+                    score = 0;
+                }
+
                 function spawnStone() {
                     if (!gameRunning) return;
 
@@ -375,7 +414,10 @@ export class GopherViewProvider implements vscode.WebviewViewProvider {
                 }
 
                 document.addEventListener('keydown', (event) => {
-                    if (event.code === 'Space') {
+                    if (event.code === 'Escape' && gameMode) {
+                        event.preventDefault();
+                        exitGame();
+                    } else if (event.code === 'Space') {
                         event.preventDefault();
 
                         if (gameMode && !gameRunning) {

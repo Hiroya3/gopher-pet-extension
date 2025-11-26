@@ -12,7 +12,7 @@
 
 <body>
     <div id="game-container">
-        <img id="gopher" class="run" src="{{gopherUri}}" alt="Gopher Pet">
+        <img id="gopher" src="{{gopherUri}}" alt="Gopher Pet">
         <div id="stone-container"></div>
         <div id="score-display">Score: 0</div>
         <div id="countdown" class="hidden"></div>
@@ -52,7 +52,6 @@
         z-index: 2;
         position: absolute;
         bottom: 0;
-        transition: bottom 0.3s ease-out;
     }
 
     .stone {
@@ -63,82 +62,9 @@
         z-index: 1;
     }
 
-    @keyframes move-left {
-        0% { right: -40px; }
-        100% { right: calc(100% + 40px); }
-    }
-
-    .stone-moving {
-        animation: move-left 2s linear forwards;
-    }
-
-    @keyframes run-right {
-        0% { transform: translateX(-100vw); }
-        100% { transform: translateX(100vw); }
-    }
-
-    .run {
-        animation: run-right 10s linear infinite;
-    }
-
     .game-mode {
-        animation: none !important;
         left: 30px !important;
         transform: none !important;
-    }
-
-    .jumping {
-        bottom: 100px !important;
-    }
-
-    @keyframes hit-spin {
-        0% {
-            transform: rotate(0deg) translateY(0);
-            opacity: 1;
-        }
-        20% {
-            transform: rotate(360deg) translateY(-50px);
-        }
-        40% {
-            transform: rotate(720deg) translateY(-80px);
-        }
-        60% {
-            transform: rotate(1080deg) translateY(-60px);
-        }
-        80% {
-            transform: rotate(1440deg) translateY(-20px);
-        }
-        100% {
-            transform: rotate(1800deg) translateY(0);
-            opacity: 1;
-        }
-    }
-
-    .hit {
-        animation: hit-spin 0.8s ease-out forwards !important;
-    }
-
-    @keyframes screen-shake {
-        0%, 100% { transform: translateX(0); }
-        10% { transform: translateX(-10px); }
-        20% { transform: translateX(10px); }
-        30% { transform: translateX(-8px); }
-        40% { transform: translateX(8px); }
-        50% { transform: translateX(-5px); }
-        60% { transform: translateX(5px); }
-        70% { transform: translateX(-3px); }
-        80% { transform: translateX(3px); }
-        90% { transform: translateX(-1px); }
-    }
-
-    .shake {
-        animation: screen-shake 0.4s ease-out;
-    }
-
-    @keyframes impact-flash {
-        0% { opacity: 0; transform: scale(0.5); }
-        50% { opacity: 1; transform: scale(1.5); }
-        100% { opacity: 0; transform: scale(2); }
     }
 
     .impact {
@@ -148,7 +74,6 @@
         border-radius: 50%;
         background: radial-gradient(circle, rgba(255,255,0,0.8) 0%, rgba(255,100,0,0.4) 50%, transparent 70%);
         pointer-events: none;
-        animation: impact-flash 0.3s ease-out forwards;
         z-index: 10;
     }
 
@@ -232,6 +157,46 @@
     const gopherRunningSrc = '{{gopherUri}}';
     const gopherSpinningSrc = '{{spinningUri}}';
 
+    // Animation utility function
+    function animate(duration, updateFn, easingFn = (t) => t) {
+        let startTime = null;
+        let animationId = null;
+        let cancelled = false;
+
+        function tick(currentTime) {
+            if (cancelled) return;
+            if (startTime === null) startTime = currentTime;
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            updateFn(easingFn(progress));
+
+            if (progress < 1) {
+                animationId = requestAnimationFrame(tick);
+            }
+        }
+
+        animationId = requestAnimationFrame(tick);
+        return {
+            cancel: () => {
+                cancelled = true;
+                if (animationId) cancelAnimationFrame(animationId);
+            }
+        };
+    }
+
+    // Easing functions
+    const easing = {
+        linear: (t) => t,
+        easeOut: (t) => 1 - Math.pow(1 - t, 3)
+    };
+
+    // Animation state tracking
+    let runAnimationId = null;
+    let jumpAnimation = null;
+    let hitSpinAnimation = null;
+    let screenShakeAnimation = null;
+
     let gameMode = false;
     let isJumping = false;
     let gameRunning = false;
@@ -241,6 +206,40 @@
     let stoneInterval = null;
     let collisionCheckInterval = null;
     let stones = [];
+
+    // Idle run animation (gopher runs left to right continuously)
+    function startRunAnimation() {
+        let startTime = null;
+        const duration = 10000; // 10 seconds
+
+        function tick(currentTime) {
+            if (gameMode) {
+                runAnimationId = null;
+                return;
+            }
+            if (startTime === null) startTime = currentTime;
+
+            const containerWidth = gameContainer.offsetWidth;
+            const gopherWidth = gopher.offsetWidth || 60;
+            const progress = ((currentTime - startTime) % duration) / duration;
+            const startX = -gopherWidth;
+            const endX = containerWidth + gopherWidth;
+            const x = startX + ((endX - startX) * progress);
+
+            gopher.style.transform = `translateX(${x}px)`;
+            runAnimationId = requestAnimationFrame(tick);
+        }
+
+        runAnimationId = requestAnimationFrame(tick);
+    }
+
+    function stopRunAnimation() {
+        if (runAnimationId) {
+            cancelAnimationFrame(runAnimationId);
+            runAnimationId = null;
+        }
+        gopher.style.transform = '';
+    }
 
     window.addEventListener('message', event => {
         const message = event.data;
@@ -255,15 +254,25 @@
         score = 0;
         updateScore();
 
+        // Stop idle animation
+        stopRunAnimation();
+
         gopher.src = gopherRunningSrc;
-        gopher.classList.remove('run', 'hit');
         gopher.classList.add('game-mode');
-        gameContainer.classList.remove('shake');
+
+        // Reset any transform from previous animations
+        gopher.style.transform = '';
+        gopher.style.bottom = '0';
+        gameContainer.style.transform = '';
+
         scoreDisplay.classList.add('visible');
         gameOverDisplay.classList.add('hidden');
 
-        // Clear existing stones
-        stones.forEach(stone => stone.element.remove());
+        // Clear existing stones and their animations
+        stones.forEach(stone => {
+            if (stone.animation) stone.animation.cancel();
+            stone.element.remove();
+        });
         stones = [];
 
         // Show prompt to press space
@@ -316,21 +325,15 @@
         // Switch to spinning gopher on collision
         gopher.src = gopherSpinningSrc;
 
-        // Add impact effects
-        gopher.classList.add('hit');
-        gameContainer.classList.add('shake');
+        // Play JavaScript animations
+        playHitSpinAnimation();
+        playScreenShake();
 
         // Create impact flash effect at gopher position
         const gopherRect = gopher.getBoundingClientRect();
         const containerRect = gameContainer.getBoundingClientRect();
-        const impact = document.createElement('div');
-        impact.className = 'impact';
-        impact.style.left = (gopherRect.left - containerRect.left + gopherRect.width / 2 - 30) + 'px';
-        impact.style.bottom = '20px';
-        gameContainer.appendChild(impact);
-
-        // Remove impact element after animation
-        setTimeout(() => impact.remove(), 300);
+        const impactX = gopherRect.left - containerRect.left + gopherRect.width / 2 - 30;
+        createImpactFlash(impactX, 20);
 
         // Show game over after spin animation
         setTimeout(() => {
@@ -352,15 +355,33 @@
             collisionCheckInterval = null;
         }
 
-        // Clear all stones
-        stones.forEach(stone => stone.element.remove());
+        // Cancel any active animations
+        if (hitSpinAnimation) {
+            hitSpinAnimation.cancel();
+            hitSpinAnimation = null;
+        }
+        if (screenShakeAnimation) {
+            screenShakeAnimation.cancel();
+            screenShakeAnimation = null;
+        }
+        if (jumpAnimation) {
+            jumpAnimation.cancel();
+            jumpAnimation = null;
+        }
+
+        // Clear all stones and their animations
+        stones.forEach(stone => {
+            if (stone.animation) stone.animation.cancel();
+            stone.element.remove();
+        });
         stones = [];
 
-        // Reset gopher to normal running mode
+        // Reset gopher styles
         gopher.src = gopherRunningSrc;
-        gopher.classList.remove('game-mode', 'hit', 'jumping');
-        gopher.classList.add('run');
-        gameContainer.classList.remove('shake');
+        gopher.classList.remove('game-mode');
+        gopher.style.transform = '';
+        gopher.style.bottom = '0';
+        gameContainer.style.transform = '';
 
         // Hide game UI
         scoreDisplay.classList.remove('visible');
@@ -372,6 +393,9 @@
         isCountingDown = false;
         waitingForStart = false;
         score = 0;
+
+        // Restart idle running animation
+        startRunAnimation();
     }
 
     function spawnStone() {
@@ -379,17 +403,30 @@
 
         const stone = document.createElement('img');
         stone.src = stoneImageSrc;
-        stone.className = 'stone stone-moving';
+        stone.className = 'stone';
+        stone.style.right = '-40px';
         stoneContainer.appendChild(stone);
 
         const stoneObj = {
             element: stone,
-            passed: false
+            passed: false,
+            animation: null
         };
         stones.push(stoneObj);
 
-        // Remove stone after animation completes
-        stone.addEventListener('animationend', () => {
+        // Animate stone from right to left using JavaScript
+        const duration = 2000; // 2 seconds
+        const containerWidth = stoneContainer.offsetWidth;
+        const startRight = -40;
+        const endRight = containerWidth + 40;
+
+        stoneObj.animation = animate(duration, (progress) => {
+            const currentRight = startRight + ((endRight - startRight) * progress);
+            stone.style.right = currentRight + 'px';
+        }, easing.linear);
+
+        // Handle animation completion
+        setTimeout(() => {
             if (!stoneObj.passed && gameRunning) {
                 score++;
                 updateScore();
@@ -397,7 +434,7 @@
             }
             stone.remove();
             stones = stones.filter(s => s !== stoneObj);
-        });
+        }, duration);
     }
 
     function updateScore() {
@@ -455,13 +492,140 @@
         if (isJumping) return;
 
         isJumping = true;
-        gopher.classList.add('jumping');
+        const jumpHeight = 100;
+        const jumpUpDuration = 300;
+        const jumpDownDuration = 200;
+
+        // Jump up
+        jumpAnimation = animate(jumpUpDuration, (progress) => {
+            const height = jumpHeight * progress;
+            gopher.style.bottom = height + 'px';
+        }, easing.easeOut);
+
+        // After reaching peak, fall down
+        setTimeout(() => {
+            jumpAnimation = animate(jumpDownDuration, (progress) => {
+                const height = jumpHeight * (1 - progress);
+                gopher.style.bottom = height + 'px';
+            }, easing.linear);
+
+            setTimeout(() => {
+                gopher.style.bottom = '0';
+                isJumping = false;
+            }, jumpDownDuration);
+        }, jumpUpDuration);
+    }
+
+    // Collision animation: Hit spin (gopher spins on collision)
+    function playHitSpinAnimation() {
+        const duration = 800;
+        const totalRotation = 1800; // 5 full rotations
+
+        // Y keyframes: [0, -50, -80, -60, -20, 0] at [0%, 20%, 40%, 60%, 80%, 100%]
+        const yKeyframes = [
+            { time: 0, value: 0 },
+            { time: 0.2, value: -50 },
+            { time: 0.4, value: -80 },
+            { time: 0.6, value: -60 },
+            { time: 0.8, value: -20 },
+            { time: 1, value: 0 }
+        ];
+
+        function interpolateY(progress) {
+            for (let i = 0; i < yKeyframes.length - 1; i++) {
+                const current = yKeyframes[i];
+                const next = yKeyframes[i + 1];
+                if (progress >= current.time && progress <= next.time) {
+                    const localProgress = (progress - current.time) / (next.time - current.time);
+                    return current.value + (next.value - current.value) * localProgress;
+                }
+            }
+            return 0;
+        }
+
+        hitSpinAnimation = animate(duration, (progress) => {
+            const rotation = totalRotation * progress;
+            const yOffset = interpolateY(progress);
+            gopher.style.transform = `rotate(${rotation}deg) translateY(${yOffset}px)`;
+        }, easing.easeOut);
+    }
+
+    // Collision animation: Screen shake
+    function playScreenShake() {
+        const duration = 400;
+
+        const shakeKeyframes = [
+            { time: 0, value: 0 },
+            { time: 0.1, value: -10 },
+            { time: 0.2, value: 10 },
+            { time: 0.3, value: -8 },
+            { time: 0.4, value: 8 },
+            { time: 0.5, value: -5 },
+            { time: 0.6, value: 5 },
+            { time: 0.7, value: -3 },
+            { time: 0.8, value: 3 },
+            { time: 0.9, value: -1 },
+            { time: 1, value: 0 }
+        ];
+
+        function interpolateShake(progress) {
+            for (let i = 0; i < shakeKeyframes.length - 1; i++) {
+                const current = shakeKeyframes[i];
+                const next = shakeKeyframes[i + 1];
+                if (progress >= current.time && progress <= next.time) {
+                    const localProgress = (progress - current.time) / (next.time - current.time);
+                    return current.value + (next.value - current.value) * localProgress;
+                }
+            }
+            return 0;
+        }
+
+        screenShakeAnimation = animate(duration, (progress) => {
+            const xOffset = interpolateShake(progress);
+            gameContainer.style.transform = `translateX(${xOffset}px)`;
+        }, easing.linear);
 
         setTimeout(() => {
-            gopher.classList.remove('jumping');
-            isJumping = false;
-        }, 500);
+            gameContainer.style.transform = '';
+        }, duration);
     }
+
+    // Collision animation: Impact flash
+    function createImpactFlash(x, y) {
+        const impact = document.createElement('div');
+        impact.className = 'impact';
+        impact.style.left = x + 'px';
+        impact.style.bottom = y + 'px';
+        impact.style.opacity = '0';
+        impact.style.transform = 'scale(0.5)';
+        gameContainer.appendChild(impact);
+
+        const duration = 300;
+
+        animate(duration, (progress) => {
+            let opacity, scale;
+
+            if (progress < 0.5) {
+                const localProgress = progress / 0.5;
+                opacity = localProgress;
+                scale = 0.5 + (1.0 * localProgress);
+            } else {
+                const localProgress = (progress - 0.5) / 0.5;
+                opacity = 1 - localProgress;
+                scale = 1.5 + (0.5 * localProgress);
+            }
+
+            impact.style.opacity = opacity.toString();
+            impact.style.transform = `scale(${scale})`;
+        }, easing.easeOut);
+
+        setTimeout(() => {
+            impact.remove();
+        }, duration);
+    }
+
+    // Initialize idle animation on load
+    startRunAnimation();
 
     window.focus();
 </script>
